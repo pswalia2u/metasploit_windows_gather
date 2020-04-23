@@ -6,7 +6,7 @@ Function ntds_location
     }
     else
     {
-        Write-Error "File Doesn't Exists"
+        Write-output "File Doesn't Exists"
     }
 }
 ntds_location
