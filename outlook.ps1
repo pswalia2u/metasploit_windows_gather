@@ -45,4 +45,5 @@ function GetSubfolders($root) {
       Write-Host "Searchterm" $searchTerm "not found"
     }
   }
-  List-Folder
+$subfolders=GetSubfolders
+write-output $subfolders
